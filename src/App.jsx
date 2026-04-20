@@ -193,7 +193,7 @@ export default function App() {
     return (
       <div style={styles.appShell}>
         <div style={styles.emptyPanel}>
-          <h1 style={styles.pageTitle}>Interface des tableaux</h1>
+          <h1 style={styles.pageTitle}>PaperLess</h1>
           <p style={styles.pageSubtitle}>Aucune page disponible.</p>
         </div>
       </div>
@@ -205,9 +205,9 @@ export default function App() {
       <div style={styles.container}>
         <div style={styles.topPanel}>
           <div>
-            <h1 style={styles.pageTitle}>Interface des tableaux</h1>
+            <h1 style={styles.pageTitle}>PaperLess</h1>
             <p style={styles.pageSubtitle}>
-              Sélectionnez une page pour afficher le tableau correspondant.
+              Production Assembly Process with Enhanced Real-time Line Execution & Sequencing System
             </p>
           </div>
 
@@ -341,6 +341,7 @@ const styles = {
     fontSize: "32px",
     lineHeight: 1.1,
     fontWeight: 700,
+    fontFamily: "'Bitcount Grid Double', monospace",
   },
   pageSubtitle: {
     margin: "8px 0 0",
