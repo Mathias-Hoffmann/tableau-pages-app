@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
-const PAGES = {
+const INITIAL_PAGES = {
   page1: {
     title: "LL3-BVL3",
     columns: ["NUMERO VI", "DATE+RG. PREV.", "VI RECYCLE", "VEMB", "LIMOGE (ID)"],
@@ -56,102 +56,242 @@ const PAGES = {
   },
 };
 
-const PAGE_NAMES = Object.keys(PAGES);
+const PAGE_NAMES = Object.keys(INITIAL_PAGES);
+const NON_CHECKBOX_COLUMNS = new Set(["DATE+RG. PREV.", "VI RECYCLE"]);
 
 function getRowKey(row, rowIndex) {
   return `${row[0] ?? "row"}-${row[1] ?? rowIndex}`;
-}
-
-function renderCellValue(cell) {
-  if (cell === "" || cell == null) {
-    return <span className="empty-cell">—</span>;
-  }
-  return cell;
 }
 
 function getRecycleColumnIndex(columns) {
   return columns.indexOf("VI RECYCLE");
 }
 
-function getRowColorClass(row, columns) {
+function getDefaultRowColor(row, columns) {
   const recycleValue = row[getRecycleColumnIndex(columns)];
   const normalizedValue = String(recycleValue ?? "").trim().toUpperCase();
 
-  if (normalizedValue === "ANNULE") return "row-red";
-  if (["DECYCLE", "DÉCYCLÉ", "DECYCLEE"].includes(normalizedValue)) return "row-blue";
-  if (["REENGAGEE", "RÉENGAGÉE"].includes(normalizedValue)) return "row-green";
-  if (["MONTEE SANS", "MONTÉE SANS"].includes(normalizedValue)) return "row-gray";
-  return "row-white";
+  if (normalizedValue === "ANNULE") return "#fee2e2";
+  if (normalizedValue === "DECYCLE" || normalizedValue === "DÉCYCLÉ" || normalizedValue === "DECYCLEE") return "#dbeafe";
+  if (normalizedValue === "REENGAGEE" || normalizedValue === "RÉENGAGÉE") return "#dcfce7";
+  if (normalizedValue === "MONTEE SANS" || normalizedValue === "MONTÉE SANS") return "#e5e7eb";
+
+  return "#ffffff";
+}
+
+function createInitialOuiCheckboxes(pages) {
+  const initialState = {};
+
+  Object.values(pages).forEach((page) => {
+    page.rows.forEach((row, rowIndex) => {
+      const rowKey = getRowKey(row, rowIndex);
+
+      page.columns.forEach((column, columnIndex) => {
+        if (column === "NUMERO VI" || column === "DATE+RG. PREV." || column === "VI RECYCLE") {
+          return;
+        }
+
+        if (String(row[columnIndex] ?? "").trim().toUpperCase() === "OUI") {
+          initialState[`${rowKey}-${column}`] = false;
+        }
+      });
+    });
+  });
+
+  return initialState;
+}
+
+function isCheckboxColumn(columnName) {
+  return !NON_CHECKBOX_COLUMNS.has(columnName);
+}
+
+function shouldShowCheckbox(columnName, cellValue) {
+  if (columnName === "NUMERO VI") return true;
+  return String(cellValue ?? "").trim().toUpperCase() === "OUI";
+}
+
+function renderTextCell(cell) {
+  if (cell === "" || cell == null) {
+    return <span style={{ color: "#94a3b8" }}>—</span>;
+  }
+  return cell;
+}
+
+function renderCheckboxLabel(columnName, cellValue) {
+  if (columnName === "NUMERO VI") return cellValue;
+  return "OUI";
 }
 
 export default function App() {
   const [selectedPage, setSelectedPage] = useState(PAGE_NAMES[0] ?? "");
-  const current = PAGES[selectedPage] ?? PAGES[PAGE_NAMES[0]];
+  const [pages] = useState(INITIAL_PAGES);
+  const [checkedViRows, setCheckedViRows] = useState({});
+  const [checkedOuiCells, setCheckedOuiCells] = useState(() => createInitialOuiCheckboxes(INITIAL_PAGES));
+
+  const current = pages[selectedPage] ?? pages[PAGE_NAMES[0]];
+
+  const checkboxColumns = useMemo(() => {
+    return (
+      current?.columns.map((column, index) => ({
+        column,
+        index,
+        isCheckbox: isCheckboxColumn(column),
+      })) ?? []
+    );
+  }, [current]);
+
+  function getRowOuiCheckboxKeys(row, rowIndex) {
+    const rowKey = getRowKey(row, rowIndex);
+
+    return current.columns
+      .map((column, columnIndex) => ({ column, columnIndex }))
+      .filter(({ column, columnIndex }) => {
+        if (column === "NUMERO VI" || column === "DATE+RG. PREV." || column === "VI RECYCLE") {
+          return false;
+        }
+
+        return String(row[columnIndex] ?? "").trim().toUpperCase() === "OUI";
+      })
+      .map(({ column }) => `${rowKey}-${column}`);
+  }
+
+  function isRowFullyChecked(row, rowIndex) {
+    const checkboxKeys = getRowOuiCheckboxKeys(row, rowIndex);
+
+    if (checkboxKeys.length === 0) {
+      return false;
+    }
+
+    return checkboxKeys.every((key) => Boolean(checkedOuiCells[key]));
+  }
+
+  function toggleViCheckbox(rowKey) {
+    setCheckedViRows((previous) => ({
+      ...previous,
+      [rowKey]: !previous[rowKey],
+    }));
+  }
+
+  function toggleOuiCheckbox(rowKey, column) {
+    const checkboxKey = `${rowKey}-${column}`;
+
+    setCheckedOuiCells((previous) => ({
+      ...previous,
+      [checkboxKey]: !previous[checkboxKey],
+    }));
+  }
+
+  function getRowBackground(row, rowIndex, rowKey) {
+    if (checkedViRows[rowKey] || isRowFullyChecked(row, rowIndex)) {
+      return "#d1d5db";
+    }
+
+    return getDefaultRowColor(row, current.columns);
+  }
 
   if (!current) {
     return (
-      <div className="app-shell">
-        <div className="panel">
-          <h1 className="page-title">Interface des tableaux</h1>
-          <p className="page-subtitle">Aucune page disponible.</p>
+      <div style={styles.appShell}>
+        <div style={styles.emptyPanel}>
+          <h1 style={styles.pageTitle}>Interface des tableaux</h1>
+          <p style={styles.pageSubtitle}>Aucune page disponible.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="app-shell">
-      <div className="container">
-        <div className="panel top-panel">
+    <div style={styles.appShell}>
+      <div style={styles.container}>
+        <div style={styles.topPanel}>
           <div>
-            <h1 className="page-title">Interface des tableaux</h1>
-            <p className="page-subtitle">Sélectionnez une page pour afficher le tableau correspondant.</p>
+            <h1 style={styles.pageTitle}>Interface des tableaux</h1>
+            <p style={styles.pageSubtitle}>
+              Sélectionnez une page pour afficher le tableau correspondant.
+            </p>
           </div>
 
-          <div className="select-block">
-            <label className="select-label" htmlFor="page-select">
+          <div style={styles.selectBlock}>
+            <label htmlFor="page-select" style={styles.selectLabel}>
               Choisir une page
             </label>
             <select
               id="page-select"
               value={selectedPage}
               onChange={(e) => setSelectedPage(e.target.value)}
-              className="page-select"
+              style={styles.pageSelect}
             >
               {PAGE_NAMES.map((page) => (
                 <option key={page} value={page}>
-                  {PAGES[page].title}
+                  {pages[page].title}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        <div className="panel table-panel">
-          <div className="table-header">
-            <h2 className="table-title">{current.title}</h2>
-            <p className="table-subtitle">{current.rows.length} lignes</p>
+        <div style={styles.tablePanel}>
+          <div style={styles.tableHeader}>
+            <h2 style={styles.tableTitle}>{current.title}</h2>
+            <p style={styles.tableSubtitle}>{current.rows.length} lignes</p>
           </div>
 
-          <div className="table-wrapper">
-            <table className="data-table">
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
               <thead>
                 <tr>
                   {current.columns.map((column) => (
-                    <th key={column}>{column}</th>
+                    <th key={column} style={styles.th}>
+                      {column}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {current.rows.map((row, rowIndex) => (
-                  <tr key={getRowKey(row, rowIndex)} className={getRowColorClass(row, current.columns)}>
-                    {row.map((cell, cellIndex) => (
-                      <td key={`${getRowKey(row, rowIndex)}-${current.columns[cellIndex] ?? cellIndex}`}>
-                        {renderCellValue(cell)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {current.rows.map((row, rowIndex) => {
+                  const rowKey = getRowKey(row, rowIndex);
+                  const autoChecked = isRowFullyChecked(row, rowIndex);
+
+                  return (
+                    <tr key={rowKey} style={{ background: getRowBackground(row, rowIndex, rowKey) }}>
+                      {checkboxColumns.map(({ column, index, isCheckbox }) => {
+                        const cellValue = row[index];
+
+                        return (
+                          <td key={`${rowKey}-${column}`} style={styles.td}>
+                            {isCheckbox ? (
+                              shouldShowCheckbox(column, cellValue) ? (
+                                <label style={styles.checkboxLabel}>
+                                  <span>{renderCheckboxLabel(column, cellValue)}</span>
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      column === "NUMERO VI"
+                                        ? Boolean(checkedViRows[rowKey]) || autoChecked
+                                        : Boolean(checkedOuiCells[`${rowKey}-${column}`])
+                                    }
+                                    onChange={() => {
+                                      if (column === "NUMERO VI") {
+                                        toggleViCheckbox(rowKey);
+                                      } else {
+                                        toggleOuiCheckbox(rowKey, column);
+                                      }
+                                    }}
+                                    style={styles.checkbox}
+                                  />
+                                </label>
+                              ) : (
+                                <span style={{ color: "#94a3b8" }}>—</span>
+                              )
+                            ) : (
+                              renderTextCell(cellValue)
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -160,3 +300,129 @@ export default function App() {
     </div>
   );
 }
+
+const styles = {
+  appShell: {
+    minHeight: "100vh",
+    background: "#f1f5f9",
+    padding: "24px",
+    fontFamily:
+      'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    color: "#0f172a",
+  },
+  container: {
+    maxWidth: "1280px",
+    margin: "0 auto",
+  },
+  topPanel: {
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "24px",
+    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+    padding: "24px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: "16px",
+    marginBottom: "24px",
+    flexWrap: "wrap",
+  },
+  emptyPanel: {
+    maxWidth: "768px",
+    margin: "0 auto",
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "24px",
+    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+    padding: "24px",
+  },
+  pageTitle: {
+    margin: 0,
+    fontSize: "32px",
+    lineHeight: 1.1,
+    fontWeight: 700,
+  },
+  pageSubtitle: {
+    margin: "8px 0 0",
+    color: "#475569",
+    fontSize: "14px",
+  },
+  selectBlock: {
+    width: "100%",
+    maxWidth: "320px",
+  },
+  selectLabel: {
+    display: "block",
+    marginBottom: "8px",
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "#334155",
+  },
+  pageSelect: {
+    width: "100%",
+    borderRadius: "16px",
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    padding: "12px 14px",
+    fontSize: "14px",
+    color: "#0f172a",
+    outline: "none",
+  },
+  tablePanel: {
+    background: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "24px",
+    boxShadow: "0 1px 2px rgba(15, 23, 42, 0.06)",
+    overflow: "hidden",
+  },
+  tableHeader: {
+    padding: "20px 24px",
+    borderBottom: "1px solid #e2e8f0",
+  },
+  tableTitle: {
+    margin: 0,
+    fontSize: "20px",
+    fontWeight: 600,
+  },
+  tableSubtitle: {
+    margin: "8px 0 0",
+    color: "#475569",
+    fontSize: "14px",
+  },
+  tableWrapper: {
+    overflowX: "auto",
+  },
+  table: {
+    width: "max-content",
+    minWidth: "100%",
+    borderCollapse: "collapse",
+    fontSize: "14px",
+  },
+  th: {
+    border: "1px solid #cbd5e1",
+    padding: "12px",
+    textAlign: "left",
+    whiteSpace: "nowrap",
+    background: "#e2e8f0",
+    color: "#1e293b",
+    fontWeight: 700,
+  },
+  td: {
+    border: "1px solid #cbd5e1",
+    padding: "10px 12px",
+    textAlign: "left",
+    whiteSpace: "nowrap",
+    color: "#0f172a",
+  },
+  checkboxLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    cursor: "pointer",
+  },
+  checkbox: {
+    width: "16px",
+    height: "16px",
+    cursor: "pointer",
+  },
+};
