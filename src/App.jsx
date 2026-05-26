@@ -106,6 +106,7 @@ export default function App() {
   const [checkedViRows, setCheckedViRows] = useState({});
   const [checkedOuiCells, setCheckedOuiCells] = useState(() => createInitialOuiCheckboxes(INITIAL_PAGES));
   const [pendingVi, setPendingVi] = useState(null);
+  const [showKpi, setShowKpi] = useState(false);
 
   const current = pages[selectedPage] ?? pages[PAGE_NAMES[0]];
 
@@ -138,9 +139,114 @@ export default function App() {
     }
   }
 
+
+
   function getRowBackground(row, rowIndex, rowKey) {
     if (checkedViRows[rowKey] || isRowFullyChecked(row, rowIndex)) return "#d1d5db";
     return getDefaultRowColor(row, current.columns);
+  }
+
+  function calculateKpi() {
+    const allRows = Object.values(pages).flatMap((page) => page.rows);
+    const allColumns = Object.values(pages).flatMap((page) =>
+      page.columns.filter((col) => col !== "NUMERO VI" && col !== "DATE+RG. PREV." && col !== "VI RECYCLE")
+    );
+
+    const totalVehicles = allRows.length;
+    const vehiclesChecked = Object.keys(checkedViRows).filter((key) => checkedViRows[key]).length;
+
+    let totalCheckboxes = 0;
+    let checkedCheckboxes = 0;
+
+    Object.values(pages).forEach((page) => {
+      page.rows.forEach((row, rowIndex) => {
+        const rk = getRowKey(row, rowIndex);
+        const ouiKeys = page.columns
+          .map((col, idx) => ({ col, idx }))
+          .filter(({ col, idx }) =>
+            col !== "NUMERO VI" && col !== "DATE+RG. PREV." && col !== "VI RECYCLE" &&
+            String(row[idx] ?? "").trim().toUpperCase() === "OUI"
+          );
+
+        totalCheckboxes += ouiKeys.length;
+        ouiKeys.forEach(({ col }) => {
+          const key = `${rk}-${col}`;
+          if (checkedOuiCells[key]) checkedCheckboxes++;
+        });
+      });
+    });
+
+    return {
+      totalVehicles,
+      vehiclesChecked,
+      vehiclesPercentage: totalVehicles > 0 ? Math.round((vehiclesChecked / totalVehicles) * 100) : 0,
+      totalCheckboxes,
+      checkedCheckboxes,
+      checkboxPercentage: totalCheckboxes > 0 ? Math.round((checkedCheckboxes / totalCheckboxes) * 100) : 0,
+    };
+  }
+
+  const kpiData = calculateKpi();
+
+  if (showKpi) {
+    return (
+      <div style={styles.appShell}>
+        <div style={styles.container}>
+          <div style={styles.topPanel}>
+            <div>
+              <h1 style={styles.pageTitle}>PaperLess</h1>
+              <p style={styles.pageSubtitle}>KPI Dashboard</p>
+            </div>
+            <button onClick={() => setShowKpi(false)} style={styles.btnBack}>← Retour</button>
+          </div>
+
+          <div style={styles.kpiContainer}>
+            <div style={styles.kpiCard}>
+              <h3 style={styles.kpiTitle}>Véhicules validés</h3>
+              <div style={styles.kpiValue}>{kpiData.vehiclesChecked}/{kpiData.totalVehicles}</div>
+              <div style={styles.kpiBar}>
+                <div
+                  style={{
+                    ...styles.kpiBarFill,
+                    width: `${kpiData.vehiclesPercentage}%`,
+                    background: "#3b82f6",
+                  }}
+                />
+              </div>
+              <div style={styles.kpiPercentage}>{kpiData.vehiclesPercentage}%</div>
+            </div>
+
+            <div style={styles.kpiCard}>
+              <h3 style={styles.kpiTitle}>Éléments cochés</h3>
+              <div style={styles.kpiValue}>{kpiData.checkedCheckboxes}/{kpiData.totalCheckboxes}</div>
+              <div style={styles.kpiBar}>
+                <div
+                  style={{
+                    ...styles.kpiBarFill,
+                    width: `${kpiData.checkboxPercentage}%`,
+                    background: "#10b981",
+                  }}
+                />
+              </div>
+              <div style={styles.kpiPercentage}>{kpiData.checkboxPercentage}%</div>
+            </div>
+
+            <div style={styles.kpiCard}>
+              <h3 style={styles.kpiTitle}>Reste à faire</h3>
+              <div style={styles.kpiValue}>{kpiData.totalCheckboxes - kpiData.checkedCheckboxes}</div>
+              <p style={styles.kpiDesc}>éléments restants</p>
+            </div>
+
+            <div style={styles.kpiCard}>
+              <h3 style={styles.kpiTitle}>Complétude globale</h3>
+              <div style={{ ...styles.kpiValue, color: "#3b82f6", fontSize: "48px" }}>
+                {Math.round(((kpiData.vehiclesChecked + kpiData.checkedCheckboxes) / (kpiData.totalVehicles + kpiData.totalCheckboxes)) * 100)}%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -156,6 +262,7 @@ export default function App() {
         />
       )}
 
+
       <div style={styles.container}>
         <div style={styles.topPanel}>
           <div>
@@ -164,18 +271,21 @@ export default function App() {
               Production Assembly Process with Enhanced Real-time Line Execution & Sequencing System
             </p>
           </div>
-          <div style={styles.selectBlock}>
-            <label htmlFor="page-select" style={styles.selectLabel}>Choisir une page</label>
-            <select
-              id="page-select"
-              value={selectedPage}
-              onChange={(e) => setSelectedPage(e.target.value)}
-              style={styles.pageSelect}
-            >
-              {PAGE_NAMES.map((page) => (
-                <option key={page} value={page}>{pages[page].title}</option>
-              ))}
-            </select>
+          <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <button onClick={() => setShowKpi(true)} style={styles.btnKpi}>📊 KPI</button>
+            <div style={styles.selectBlock}>
+              <label htmlFor="page-select" style={styles.selectLabel}>Choisir une page</label>
+              <select
+                id="page-select"
+                value={selectedPage}
+                onChange={(e) => setSelectedPage(e.target.value)}
+                style={styles.pageSelect}
+              >
+                {PAGE_NAMES.map((page) => (
+                  <option key={page} value={page}>{pages[page].title}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -267,4 +377,14 @@ const styles = {
   modalButtons: { display: "flex", gap: "10px", justifyContent: "flex-end" },
   btnCancel: { padding: "9px 20px", borderRadius: "12px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "14px", fontWeight: 500, cursor: "pointer", color: "#334155" },
   btnConfirm: { padding: "9px 20px", borderRadius: "12px", border: "1px solid #bfdbfe", background: "#eff6ff", fontSize: "14px", fontWeight: 600, cursor: "pointer", color: "#1d4ed8" },
+  btnKpi: { padding: "14px 20px", borderRadius: "12px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "16px", fontWeight: 600, cursor: "pointer", color: "#0f172a", transition: "all 0.2s" },
+  btnBack: { padding: "12px 20px", borderRadius: "12px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "14px", fontWeight: 600, cursor: "pointer", color: "#0f172a" },
+  kpiContainer: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" },
+  kpiCard: { background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "24px", boxShadow: "0 1px 3px rgba(15,23,42,0.08)" },
+  kpiTitle: { margin: "0 0 16px", fontSize: "16px", fontWeight: 600, color: "#475569" },
+  kpiValue: { fontSize: "36px", fontWeight: 700, color: "#1e293b", margin: "12px 0" },
+  kpiPercentage: { fontSize: "14px", color: "#64748b", marginTop: "8px" },
+  kpiDesc: { fontSize: "14px", color: "#64748b", margin: "12px 0 0" },
+  kpiBar: { height: "8px", background: "#e2e8f0", borderRadius: "4px", overflow: "hidden", marginTop: "12px" },
+  kpiBarFill: { height: "100%", transition: "width 0.3s" },
 };
