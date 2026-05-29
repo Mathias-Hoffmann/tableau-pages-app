@@ -1,10 +1,7 @@
-// App.jsx — PaperLess v2
-// Changes vs original:
-//   1. BIG_ROWS=5 first rows rendered at larger font/padding
-//   2. Page selector enlarged (font 18px, padding 14px)
-//   3. ConfirmModal on NUMERO VI checkbox (check only, uncheck is direct)
+// App.jsx — PaperLess v3 with MongoDB
+import React, { useMemo, useState, useEffect } from "react";
 
-import React, { useMemo, useState } from "react";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const INITIAL_PAGES = {
   page1: {
@@ -61,10 +58,11 @@ function getRecycleColumnIndex(columns) { return columns.indexOf("VI RECYCLE"); 
 
 function getDefaultRowColor(row, columns) {
   const v = String(row[getRecycleColumnIndex(columns)] ?? "").trim().toUpperCase();
-  if (v === "ANNULE") return "#fee2e2";
-  if (v === "DECYCLE" || v === "DECYCLEE") return "#dbeafe";
-  if (v === "REENGAGEE") return "#dcfce7";
-  if (v === "MONTEE SANS") return "#e5e7eb";
+  // Accentuer les couleurs: rouge plus vif, bleu plus net, gris plus visible
+  if (v === "ANNULE") return "#fecaca"; // vif rouge clair
+  if (v === "DECYCLE" || v === "DECYCLEE") return "#93c5fd"; // bleu accentué
+  if (v === "REENGAGEE") return "#86efac"; // vert lumineux
+  if (v === "MONTEE SANS") return "#cbd5e1"; // gris plus marqué
   return "#ffffff";
 }
 
@@ -107,6 +105,54 @@ export default function App() {
   const [checkedOuiCells, setCheckedOuiCells] = useState(() => createInitialOuiCheckboxes(INITIAL_PAGES));
   const [pendingVi, setPendingVi] = useState(null);
   const [showKpi, setShowKpi] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load data from MongoDB on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [vehiclesRes, checkboxesRes] = await Promise.all([
+          fetch(`${API_URL}/vehicles`),
+          fetch(`${API_URL}/checkboxes`),
+        ]);
+        const vehicles = await vehiclesRes.json();
+        const checkboxes = await checkboxesRes.json();
+        setCheckedViRows(vehicles);
+        setCheckedOuiCells(checkboxes);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Save vehicle to DB
+  const saveVehicle = async (vehicleNumber, checked) => {
+    try {
+      await fetch(`${API_URL}/vehicle`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vehicleNumber, checked }),
+      });
+    } catch (error) {
+      console.error("Error saving vehicle:", error);
+    }
+  };
+
+  // Save checkbox to DB
+  const saveCheckbox = async (rowKey, column, checked) => {
+    try {
+      await fetch(`${API_URL}/checkbox`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rowKey, column, checked }),
+      });
+    } catch (error) {
+      console.error("Error saving checkbox:", error);
+    }
+  };
 
   const current = pages[selectedPage] ?? pages[PAGE_NAMES[0]];
 
@@ -134,6 +180,7 @@ export default function App() {
   function handleViClick(rowKey, vehicleNumber, currentlyChecked) {
     if (currentlyChecked) {
       setCheckedViRows((prev) => ({ ...prev, [rowKey]: false }));
+      saveVehicle(vehicleNumber, false);
     } else {
       setPendingVi({ rowKey, vehicleNumber });
     }
@@ -256,10 +303,17 @@ export default function App() {
           vehicleNumber={pendingVi.vehicleNumber}
           onConfirm={() => {
             setCheckedViRows((prev) => ({ ...prev, [pendingVi.rowKey]: true }));
+            saveVehicle(pendingVi.vehicleNumber, true);
             setPendingVi(null);
           }}
           onCancel={() => setPendingVi(null)}
         />
+      )}
+
+      {loading && (
+        <div style={styles.loadingOverlay}>
+          <div style={styles.spinner}>Chargement des données...</div>
+        </div>
       )}
 
 
@@ -310,7 +364,7 @@ export default function App() {
                         const cellValue = row[index];
                         const valU = String(cellValue ?? "").trim().toUpperCase();
                         return (
-                          <td key={`${rowKey}-${column}`} style={isBig ? styles.tdBig : styles.td}>
+                          <td key={`${rowKey}-${column}`} style={{...( isBig ? styles.tdBig : styles.td), ...(column === "DATE+RG. PREV." ? { letterSpacing: "0.20em" } : {})}}>
                             {isCheckbox ? (
                               column === "NUMERO VI" || valU === "OUI" ? (
                                 <label style={styles.checkboxLabel}>
@@ -325,7 +379,9 @@ export default function App() {
                                         handleViClick(rowKey, row[0], Boolean(checkedViRows[rowKey]) || autoChecked);
                                       } else {
                                         const k = `${rowKey}-${column}`;
-                                        setCheckedOuiCells((prev) => ({ ...prev, [k]: !prev[k] }));
+                                        const newChecked = !checkedOuiCells[k];
+                                        setCheckedOuiCells((prev) => ({ ...prev, [k]: newChecked }));
+                                        saveCheckbox(rowKey, column, newChecked);
                                       }
                                     }}
                                     style={styles.checkbox}
@@ -351,40 +407,42 @@ export default function App() {
 }
 
 const styles = {
-  appShell: { minHeight: "100vh", background: "#f1f5f9", padding: "24px", fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif', color: "#0f172a" },
+  appShell: { minHeight: "100vh", background: "#0a0e27", padding: "24px", fontFamily: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif', color: "#ffffff", fontWeight: 700 },
   container: { maxWidth: "1280px", margin: "0 auto" },
-  topPanel: { background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", boxShadow: "0 1px 2px rgba(15,23,42,0.06)", padding: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", marginBottom: "24px", flexWrap: "wrap" },
-  pageTitle: { margin: 0, fontSize: "32px", lineHeight: 1.1, fontWeight: 700, fontFamily: "'Bitcount Grid Double', monospace" },
-  pageSubtitle: { margin: "8px 0 0", color: "#475569", fontSize: "14px" },
+  topPanel: { background: "#1a1f3a", border: "2px solid #2563eb", borderRadius: "24px", boxShadow: "0 0 20px rgba(37,99,235,0.18)", padding: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", marginBottom: "24px", flexWrap: "wrap" },
+  pageTitle: { margin: 0, fontSize: "32px", lineHeight: 1.1, fontWeight: 900, fontFamily: "'Bitcount Grid Double', monospace", color: "#64748b" },
+  pageSubtitle: { margin: "8px 0 0", color: "#2563eb", fontSize: "14px", fontWeight: 700 },
   selectBlock: { width: "100%", maxWidth: "320px" },
-  selectLabel: { display: "block", marginBottom: "8px", fontSize: "16px", fontWeight: 600, color: "#334155" },
-  pageSelect: { width: "100%", borderRadius: "16px", border: "1px solid #cbd5e1", background: "#ffffff", padding: "14px 16px", fontSize: "18px", fontWeight: 600, color: "#0f172a", outline: "none", cursor: "pointer" },
-  tablePanel: { background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "24px", boxShadow: "0 1px 2px rgba(15,23,42,0.06)", overflow: "hidden" },
-  tableHeader: { padding: "20px 24px", borderBottom: "1px solid #e2e8f0" },
-  tableTitle: { margin: 0, fontSize: "20px", fontWeight: 600 },
-  tableSubtitle: { margin: "8px 0 0", color: "#475569", fontSize: "14px" },
+  selectLabel: { display: "block", marginBottom: "8px", fontSize: "16px", fontWeight: 700, color: "#64748b" },
+  pageSelect: { width: "100%", borderRadius: "16px", border: "2px solid #ef4444", background: "#1a1f3a", padding: "12px 10px", fontSize: "16px", fontWeight: 700, color: "#64748b", outline: "none", cursor: "pointer" },
+  tablePanel: { background: "#1a1f3a", border: "2px solid #2563eb", borderRadius: "24px", boxShadow: "0 0 20px rgba(37,99,235,0.08)", overflow: "hidden" },
+  tableHeader: { padding: "16px 20px", borderBottom: "2px solid #ef4444" },
+  tableTitle: { margin: 0, fontSize: "20px", fontWeight: 700, color: "#64748b" },
+  tableSubtitle: { margin: "8px 0 0", color: "#2563eb", fontSize: "14px", fontWeight: 700 },
   tableWrapper: { overflowX: "auto" },
   table: { width: "max-content", minWidth: "100%", borderCollapse: "collapse" },
-  th: { border: "1px solid #cbd5e1", padding: "12px", textAlign: "left", whiteSpace: "nowrap", background: "#e2e8f0", color: "#1e293b", fontWeight: 700, fontSize: "14px" },
-  td: { border: "1px solid #cbd5e1", padding: "10px 12px", textAlign: "left", whiteSpace: "nowrap", color: "#0f172a", fontSize: "14px" },
-  tdBig: { border: "1px solid #cbd5e1", padding: "14px 16px", textAlign: "left", whiteSpace: "nowrap", color: "#0f172a", fontSize: "18px", fontWeight: 600 },
-  checkboxLabel: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" },
+  th: { border: "1px solid #ef4444", padding: "6px 8px", textAlign: "left", whiteSpace: "nowrap", background: "#2563eb", color: "#ffffff", fontWeight: 900, fontSize: "13px", letterSpacing: "0.03em" },
+  td: { border: "1px solid #2563eb", padding: "6px 8px", textAlign: "left", whiteSpace: "nowrap", color: "#e6eef8", fontSize: "13px", fontWeight: 700 },
+  tdBig: { border: "1px solid #2563eb", padding: "8px 8px", textAlign: "left", whiteSpace: "nowrap", color: "#e6eef8", fontSize: "16px", fontWeight: 900 },
+  checkboxLabel: { display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: 700 },
   checkbox: { width: "16px", height: "16px", cursor: "pointer" },
-  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 },
-  modal: { background: "#ffffff", borderRadius: "20px", border: "1px solid #e2e8f0", padding: "28px 32px", maxWidth: "420px", width: "90%" },
-  modalTitle: { margin: "0 0 12px", fontSize: "18px", fontWeight: 600 },
-  modalBody: { margin: "0 0 24px", fontSize: "15px", color: "#475569", lineHeight: 1.6 },
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 },
+  modal: { background: "#1a1f3a", borderRadius: "20px", border: "2px solid #64748b", padding: "28px 32px", maxWidth: "420px", width: "90%" },
+  modalTitle: { margin: "0 0 12px", fontSize: "18px", fontWeight: 700, color: "#64748b" },
+  modalBody: { margin: "0 0 24px", fontSize: "15px", color: "#2563eb", lineHeight: 1.6, fontWeight: 700 },
   modalButtons: { display: "flex", gap: "10px", justifyContent: "flex-end" },
-  btnCancel: { padding: "9px 20px", borderRadius: "12px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "14px", fontWeight: 500, cursor: "pointer", color: "#334155" },
-  btnConfirm: { padding: "9px 20px", borderRadius: "12px", border: "1px solid #bfdbfe", background: "#eff6ff", fontSize: "14px", fontWeight: 600, cursor: "pointer", color: "#1d4ed8" },
-  btnKpi: { padding: "14px 20px", borderRadius: "12px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "16px", fontWeight: 600, cursor: "pointer", color: "#0f172a", transition: "all 0.2s" },
-  btnBack: { padding: "12px 20px", borderRadius: "12px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "14px", fontWeight: 600, cursor: "pointer", color: "#0f172a" },
+  btnCancel: { padding: "9px 20px", borderRadius: "12px", border: "2px solid #ef4444", background: "#1a1f3a", fontSize: "14px", fontWeight: 700, cursor: "pointer", color: "#ef4444" },
+  btnConfirm: { padding: "9px 20px", borderRadius: "12px", border: "2px solid #2563eb", background: "#0f1429", fontSize: "14px", fontWeight: 700, cursor: "pointer", color: "#2563eb" },
+  btnKpi: { padding: "12px 16px", borderRadius: "12px", border: "2px solid #ef4444", background: "#1a1f3a", fontSize: "14px", fontWeight: 700, cursor: "pointer", color: "#ef4444", transition: "all 0.15s" },
+  btnBack: { padding: "10px 16px", borderRadius: "12px", border: "2px solid #2563eb", background: "#1a1f3a", fontSize: "14px", fontWeight: 700, cursor: "pointer", color: "#2563eb" },
   kpiContainer: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" },
-  kpiCard: { background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "24px", boxShadow: "0 1px 3px rgba(15,23,42,0.08)" },
-  kpiTitle: { margin: "0 0 16px", fontSize: "16px", fontWeight: 600, color: "#475569" },
-  kpiValue: { fontSize: "36px", fontWeight: 700, color: "#1e293b", margin: "12px 0" },
-  kpiPercentage: { fontSize: "14px", color: "#64748b", marginTop: "8px" },
-  kpiDesc: { fontSize: "14px", color: "#64748b", margin: "12px 0 0" },
-  kpiBar: { height: "8px", background: "#e2e8f0", borderRadius: "4px", overflow: "hidden", marginTop: "12px" },
+  kpiCard: { background: "#1a1f3a", border: "2px solid #ef4444", borderRadius: "16px", padding: "20px", boxShadow: "0 0 12px rgba(239,68,68,0.12)" },
+  kpiTitle: { margin: "0 0 12px", fontSize: "15px", fontWeight: 700, color: "#2563eb" },
+  kpiValue: { fontSize: "32px", fontWeight: 900, color: "#64748b", margin: "10px 0" },
+  kpiPercentage: { fontSize: "14px", color: "#2563eb", marginTop: "8px", fontWeight: 700 },
+  kpiDesc: { fontSize: "14px", color: "#64748b", margin: "12px 0 0", fontWeight: 700 },
+  kpiBar: { height: "8px", background: "#0f1429", borderRadius: "4px", overflow: "hidden", marginTop: "12px", border: "1px solid #ef4444" },
   kpiBarFill: { height: "100%", transition: "width 0.3s" },
+  loadingOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
+  spinner: { background: "#1a1f3a", padding: "28px", borderRadius: "12px", fontSize: "16px", fontWeight: 700, color: "#64748b", border: "2px solid #2563eb" },
 };
