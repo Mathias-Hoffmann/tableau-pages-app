@@ -364,7 +364,7 @@ export default function App() {
                         const cellValue = row[index];
                         const valU = String(cellValue ?? "").trim().toUpperCase();
                         return (
-                          <td key={`${rowKey}-${column}`} style={{...( isBig ? styles.tdBig : styles.td), ...(column === "DATE+RG. PREV." ? { letterSpacing: "0.20em" } : {})}}>
+                          <td key={`${rowKey}-${column}`} style={{...( isBig ? styles.tdBig : styles.td), ...(column === "DATE+RG. PREV." ? { letterSpacing: "0.12em" } : {})}}>
                             {isCheckbox ? (
                               column === "NUMERO VI" || valU === "OUI" ? (
                                 <label style={styles.checkboxLabel}>
@@ -414,7 +414,7 @@ const styles = {
     fontFamily:
       'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     color: "#0f172a",
-    table: { width: "fit-content", tableLayout: "auto", borderCollapse: "collapse", fontSize: "16px" },
+    table: { width: "fit-content", tableLayout: "auto", borderCollapse: "collapse", fontSize: "16px", display: "inline-table" },
     th: {
       border: "1px solid #cbd5e1",
       padding: "4px 6px",
@@ -556,12 +556,12 @@ const styles = {
   checkboxLabel: {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: "4px",
     cursor: "pointer",
   },
   checkbox: {
-    width: "16px",
-    height: "16px",
+    width: "14px",
+    height: "14px",
     cursor: "pointer",
   },
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 },
