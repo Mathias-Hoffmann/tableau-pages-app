@@ -423,7 +423,7 @@ const styles = {
       background: "#e2e8f0",
       color: "#1e293b",
       fontWeight: 900,
-      fontSize: "15px",
+      fontSize: "18px",
     },
     td: {
       border: "1px solid #cbd5e1",
@@ -431,8 +431,8 @@ const styles = {
       textAlign: "left",
       whiteSpace: "nowrap",
       color: "#0f172a",
-      fontSize: "16px",
-      fontWeight: 700,
+      fontSize: "20px",
+      fontWeight: 800,
     },
     tdBig: {
       border: "1px solid #cbd5e1",
@@ -440,8 +440,8 @@ const styles = {
       textAlign: "left",
       whiteSpace: "nowrap",
       color: "#0f172a",
-      fontSize: "18px",
-      fontWeight: 800,
+      fontSize: "22px",
+      fontWeight: 900,
     },
   },
   topPanel: {
