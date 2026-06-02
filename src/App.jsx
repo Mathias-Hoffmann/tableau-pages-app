@@ -414,10 +414,10 @@ const styles = {
     fontFamily:
       'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     color: "#0f172a",
-    table: { width: "auto", tableLayout: "auto", borderCollapse: "collapse", fontSize: "16px" },
+    table: { width: "fit-content", tableLayout: "auto", borderCollapse: "collapse", fontSize: "16px" },
     th: {
       border: "1px solid #cbd5e1",
-      padding: "6px 6px",
+      padding: "4px 6px",
       textAlign: "left",
       whiteSpace: "nowrap",
       background: "#e2e8f0",
@@ -427,7 +427,7 @@ const styles = {
     },
     td: {
       border: "1px solid #cbd5e1",
-      padding: "6px 6px",
+      padding: "4px 6px",
       textAlign: "left",
       whiteSpace: "nowrap",
       color: "#0f172a",
@@ -436,7 +436,7 @@ const styles = {
     },
     tdBig: {
       border: "1px solid #cbd5e1",
-      padding: "8px 6px",
+      padding: "6px 6px",
       textAlign: "left",
       whiteSpace: "nowrap",
       color: "#0f172a",
